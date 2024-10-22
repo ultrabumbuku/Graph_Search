@@ -48,7 +48,7 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <h1>知識グラフアプリケーション</h1>
+        <h1>Graph Search</h1>
         <p>クエリを入力してください:</p>
         <SearchBar onSearch={handleSearch} />
         {isLoading && <p>読み込み中...</p>}
