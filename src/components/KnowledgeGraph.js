@@ -3,72 +3,80 @@ import * as d3 from 'd3';
 
 const KnowledgeGraph = ({ data }) => {
   const svgRef = useRef(null);
+  const containerRef = useRef(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    console.log('KnowledgeGraph useEffect triggered');
-    console.log('Data received in KnowledgeGraph:', data);
-
-    if (!data || !svgRef.current) {
-      console.log('Data or SVG ref is missing');
+    if (!data || !svgRef.current || !containerRef.current) {
       setError('データまたはSVG要素が見つかりません');
       return;
     }
 
     try {
-      console.log('Selecting SVG element');
       const svg = d3.select(svgRef.current);
-      console.log('Clearing previous content');
       svg.selectAll("*").remove();
 
-      const width = 800;
-      const height = 600;
-      console.log('Setting SVG attributes');
-      svg.attr('width', width).attr('height', height)
-         .attr('viewBox', [0, 0, width, height])
-         .style('border', '1px solid #ddd');
+      const container = containerRef.current;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      svg.attr('width', width).attr('height', height);
 
       if (!data.nodes || !data.links || data.nodes.length === 0) {
         throw new Error('無効なデータ構造です');
       }
 
-      console.log('Creating force simulation');
       const simulation = d3.forceSimulation(data.nodes)
-        .force('link', d3.forceLink(data.links).id(d => d.id).distance(100))
-        .force('charge', d3.forceManyBody().strength(-300))
+        .force('link', d3.forceLink(data.links).id(d => d.id).distance(150))
+        .force('charge', d3.forceManyBody().strength(-1000))
+        .force('collide', d3.forceCollide().radius(60))
         .force('center', d3.forceCenter(width / 2, height / 2));
 
-      console.log('Drawing links');
-      const link = svg.append('g')
-        .attr('stroke', '#999')
-        .attr('stroke-opacity', 0.6)
+      const zoom = d3.zoom()
+        .scaleExtent([0.1, 4])
+        .on('zoom', (event) => {
+          g.attr('transform', event.transform);
+        });
+
+      svg.call(zoom);
+
+      const g = svg.append('g');
+
+      const link = g.append('g')
         .selectAll('line')
         .data(data.links)
-        .join('line');
+        .join('line')
+        .attr('stroke', '#999')
+        .attr('stroke-opacity', 0.6);
 
-      console.log('Drawing nodes');
-      const node = svg.append('g')
-        .attr('stroke', '#fff')
-        .attr('stroke-width', 1.5)
+      const node = g.append('g')
         .selectAll('circle')
         .data(data.nodes)
         .join('circle')
-        .attr('r', d => d.id === data.nodes[0].id ? 15 : 10)
+        .attr('r', d => d.id === data.nodes[0].id ? 20 : 15)
         .attr('fill', d => d.id === data.nodes[0].id ? '#ff0000' : '#69b3a2')
         .call(drag(simulation));
 
-      console.log('Adding labels');
-      const label = svg.append('g')
-        .attr('font-family', 'sans-serif')
-        .attr('font-size', 10)
+      const labelBackground = g.append('g')
+        .selectAll('rect')
+        .data(data.nodes)
+        .join('rect')
+        .attr('fill', 'white')
+        .attr('opacity', 0.8);
+
+      const label = g.append('g')
         .selectAll('text')
         .data(data.nodes)
         .join('text')
         .text(d => d.label)
-        .attr('dx', 12)
-        .attr('dy', '.35em');
+        .attr('font-size', 12)
+        .attr('dy', 4)
+        .each(function(d) {
+          const bbox = this.getBBox();
+          d.width = bbox.width;
+          d.height = bbox.height;
+        });
 
-      console.log('Setting up simulation tick');
       simulation.on('tick', () => {
         link
           .attr('x1', d => d.source.x)
@@ -80,13 +88,18 @@ const KnowledgeGraph = ({ data }) => {
           .attr('cx', d => d.x)
           .attr('cy', d => d.y);
 
+        labelBackground
+          .attr('x', d => d.x + (d.x < width / 2 ? 20 : -d.width - 25))
+          .attr('y', d => d.y - d.height / 2 - 2)
+          .attr('width', d => d.width + 10)
+          .attr('height', d => d.height + 4);
+
         label
-          .attr('x', d => d.x)
+          .attr('x', d => d.x + (d.x < width / 2 ? 25 : -d.width - 20))
           .attr('y', d => d.y);
       });
 
-      console.log('D3 simulation created and nodes/links drawn');
-      setError(null); // Clear any previous errors
+      setError(null);
     } catch (error) {
       console.error('Error in KnowledgeGraph rendering:', error);
       setError(`グラフの描画中にエラーが発生しました: ${error.message}`);
@@ -118,17 +131,9 @@ const KnowledgeGraph = ({ data }) => {
   }
 
   return (
-    <div>
+    <div ref={containerRef} style={{ width: '100%', height: '80vh', maxHeight: '600px' }}>
       {error && <div style={{ color: 'red', marginBottom: '10px' }}>{error}</div>}
-      <svg 
-        ref={svgRef}
-        style={{
-          border: '1px solid #ddd',
-          maxWidth: '100%',
-          height: 'auto',
-          aspectRatio: '4 / 3'
-        }}
-      />
+      <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
     </div>
   );
 };
